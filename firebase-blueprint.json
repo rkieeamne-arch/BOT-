@@ -1,0 +1,116 @@
+{
+  "entities": {
+    "GuildConfig": {
+      "title": "Guild Configuration",
+      "description": "Stores settings and allowed roles for a Discord guild.",
+      "type": "object",
+      "properties": {
+        "allowedRoleIds": {
+          "type": "array",
+          "description": "List of role IDs that users can add/remove themselves."
+        },
+        "rolePrice": {
+          "type": "integer",
+          "description": "Price in Discord Credits for custom roles."
+        },
+        "tokenPrice": {
+          "type": "integer",
+          "description": "Price in activity tokens for custom roles."
+        },
+        "paymentAccount": {
+          "type": "string",
+          "description": "Target Discord user ID for payments."
+        },
+        "paymentChannelId": {
+          "type": "string",
+          "description": "Channel ID for monitoring ProBot transfers."
+        },
+        "freeRoleEnabled": {
+          "type": "boolean",
+          "description": "Whether free role creation offer is enabled."
+        },
+        "gamesEnabled": {
+          "type": "boolean",
+          "description": "Whether interactive games system is enabled."
+        }
+      },
+      "required": ["allowedRoleIds"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores tokens and cooldowns for a Discord user.",
+      "type": "object",
+      "properties": {
+        "lastActionAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the last role addition."
+        },
+        "tokens": {
+          "type": "integer",
+          "description": "Number of interaction tokens earned."
+        },
+        "lastTokenAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last time tokens were awarded."
+        },
+        "lastRoleCreatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last time a user created a custom role."
+        },
+        "salesCount": {
+          "type": "integer",
+          "description": "Number of successful roles sold in the marketplace."
+        }
+      }
+    },
+    "MarketplaceListing": {
+      "title": "Marketplace Listing",
+      "description": "A role listed for sale by a user.",
+      "type": "object",
+      "properties": {
+        "listingId": { "type": "string" },
+        "roleId": { "type": "string" },
+        "roleName": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "price": { "type": "integer" },
+        "currency": { "type": "string", "enum": ["credit", "tokens"] },
+        "status": { "type": "string", "enum": ["active", "sold", "canceled"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["roleId", "roleName", "sellerId", "price", "currency", "status"]
+    },
+    "TokenStats": {
+      "title": "Token Economy Stats",
+      "description": "Global statistics for tokens granted and tokens spent on custom role creations.",
+      "type": "object",
+      "properties": {
+        "totalGranted": { "type": "integer" },
+        "totalSpentOnRoles": { "type": "integer" },
+        "rolesCreatedWithTokensCount": { "type": "integer" },
+        "lastGrantedAt": { "type": "string", "format": "date-time" },
+        "lastSpentAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/guilds/{guildId}": {
+      "schema": "GuildConfig",
+      "description": "Configuration for a specific Discord guild."
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile data including tokens and cooldowns."
+    },
+    "/marketplace/{listingId}": {
+      "schema": "MarketplaceListing",
+      "description": "Roles listed for sale in the marketplace."
+    },
+    "/stats/{statId}": {
+      "schema": "TokenStats",
+      "description": "Global statistics including total tokens granted and spent on roles."
+    }
+  }
+}

@@ -228,10 +228,23 @@ async function startTokenExchange(channel: any, userId: string) {
   });
 }
 
+const DISCORD_TOKEN_RAW = process.env.DISCORD_TOKEN;
+let DISCORD_TOKEN = DISCORD_TOKEN_RAW?.trim();
+// Clean token from any quotes, spaces, or prefixes aggressively
+if (DISCORD_TOKEN) {
+  DISCORD_TOKEN = DISCORD_TOKEN.replace(/[\u200B-\u200D\uFEFF]/g, ""); // Remove zero-width spaces
+  DISCORD_TOKEN = DISCORD_TOKEN.replace(/^["']|["']$/g, "").trim();
+  if (DISCORD_TOKEN.startsWith("Bot ")) DISCORD_TOKEN = DISCORD_TOKEN.substring(4).trim();
+  if (DISCORD_TOKEN.startsWith("Token ")) DISCORD_TOKEN = DISCORD_TOKEN.substring(6).trim();
+}
+
+const CLIENT_ID = (process.env.VITE_DISCORD_CLIENT_ID || process.env.DISCORD_CLIENT_ID || process.env.CLIENT_ID || process.env.APP_ID)?.trim();
+
 // Global Status Store
 let botStatus = {
   loggedIn: false,
   tag: "Not logged in",
+  clientId: CLIENT_ID || "",
   guilds: 0,
   lastError: null as string | null,
   intentsRequested: ["Guilds", "GuildMessages", "MessageContent", "GuildMembers", "GuildPresences"],
@@ -251,18 +264,6 @@ process.on("uncaughtException", (error: any) => {
   console.error("❌ Uncaught exception:", error);
   botStatus.lastError = error?.message || "Unknown exception";
 });
-
-const DISCORD_TOKEN_RAW = process.env.DISCORD_TOKEN;
-let DISCORD_TOKEN = DISCORD_TOKEN_RAW?.trim();
-// Clean token from any quotes, spaces, or prefixes aggressively
-if (DISCORD_TOKEN) {
-  DISCORD_TOKEN = DISCORD_TOKEN.replace(/[\u200B-\u200D\uFEFF]/g, ""); // Remove zero-width spaces
-  DISCORD_TOKEN = DISCORD_TOKEN.replace(/^["']|["']$/g, "").trim();
-  if (DISCORD_TOKEN.startsWith("Bot ")) DISCORD_TOKEN = DISCORD_TOKEN.substring(4).trim();
-  if (DISCORD_TOKEN.startsWith("Token ")) DISCORD_TOKEN = DISCORD_TOKEN.substring(6).trim();
-}
-
-const CLIENT_ID = (process.env.VITE_DISCORD_CLIENT_ID || process.env.DISCORD_CLIENT_ID || process.env.APP_ID)?.trim();
 
 // Command Registration
 const commands = [
@@ -1010,6 +1011,9 @@ client.on("guildCreate", guild => {
 client.on(Events.ClientReady, () => {
   botStatus.loggedIn = true;
   botStatus.tag = client.user?.tag || "Unknown";
+  if (client.user?.id) {
+    botStatus.clientId = client.user.id;
+  }
   botStatus.guilds = client.guilds.cache.size;
   botStatus.lastError = null;
   console.log(`🚀 Bot logged in successfully as ${client.user?.tag}`);

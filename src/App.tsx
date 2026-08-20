@@ -46,6 +46,7 @@ import { motion, AnimatePresence } from "motion/react";
 interface BotStatus {
   loggedIn: boolean;
   tag: string;
+  clientId?: string;
   guilds: number;
   lastError: string | null;
   intentsRequested: string[];
@@ -169,11 +170,14 @@ export default function App() {
   const [isCreatingArabRoles, setIsCreatingArabRoles] = useState<boolean>(false);
   const [arabRolesSuccessMsg, setArabRolesSuccessMsg] = useState<string | null>(null);
 
-  const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
-  const isIdMissing = !clientId || clientId.trim() === "" || clientId === "PLACEHOLDER";
+  const envClientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
+  const activeClientId = (envClientId && envClientId.trim() !== "" && envClientId !== "PLACEHOLDER") 
+    ? envClientId.trim() 
+    : (status?.clientId || "");
+  const isIdMissing = !activeClientId || activeClientId.trim() === "";
   const inviteUrl = isIdMissing 
     ? "#" 
-    : `https://discord.com/api/oauth2/authorize?client_id=${clientId.trim()}&permissions=8&scope=bot%20applications.commands`;
+    : `https://discord.com/api/oauth2/authorize?client_id=${activeClientId.trim()}&permissions=8&scope=bot%20applications.commands`;
 
   // Fetch Bot Connection Status
   const fetchStatus = async () => {

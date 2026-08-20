@@ -360,7 +360,8 @@ const commands = [
 ].map(command => command.toJSON());
 
 async function registerCommands(guildId?: string, clear: boolean = false) {
-  if (!DISCORD_TOKEN || !CLIENT_ID) {
+  const targetClientId = CLIENT_ID || client.user?.id || botStatus.clientId;
+  if (!DISCORD_TOKEN || !targetClientId) {
     console.error("❌ CLIENT_ID or DISCORD_TOKEN is missing. Cannot register commands.");
     return;
   }
@@ -368,10 +369,10 @@ async function registerCommands(guildId?: string, clear: boolean = false) {
   try {
     if (guildId) {
       // Clear guild commands if requested, otherwise register
-      await rest.put(Routes.applicationGuildCommands(CLIENT_ID, guildId), { body: clear ? [] : commands });
+      await rest.put(Routes.applicationGuildCommands(targetClientId, guildId), { body: clear ? [] : commands });
       if (!clear) console.log(`✅ Registered commands for guild ${guildId}`);
     } else {
-      await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+      await rest.put(Routes.applicationCommands(targetClientId), { body: commands });
       console.log(`✅ Registered global commands`);
     }
   } catch (error: any) {

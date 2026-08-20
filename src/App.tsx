@@ -170,10 +170,14 @@ export default function App() {
   const [isCreatingArabRoles, setIsCreatingArabRoles] = useState<boolean>(false);
   const [arabRolesSuccessMsg, setArabRolesSuccessMsg] = useState<string | null>(null);
 
+  const [customClientId, setCustomClientId] = useState<string>(() => {
+    return localStorage.getItem("custom_discord_client_id") || "";
+  });
+
   const envClientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
   const activeClientId = (envClientId && envClientId.trim() !== "" && envClientId !== "PLACEHOLDER") 
     ? envClientId.trim() 
-    : (status?.clientId || "");
+    : (status?.clientId || customClientId || "");
   const isIdMissing = !activeClientId || activeClientId.trim() === "";
   const inviteUrl = isIdMissing 
     ? "#" 
@@ -608,10 +612,21 @@ export default function App() {
               onClick={(e) => {
                 if (isIdMissing) {
                   e.preventDefault();
-                  alert("⚠️ لم يتم العثور على DISCORD_CLIENT_ID. تأكد من إضافته في Secrets ثم أعد التشغيل.");
+                  const input = prompt(
+                    "🔑 أدخل (Client ID / Application ID) الخاص بالبوت لدعوته للسيرفر مباشرة:\n\n(يمكنك الحصول عليه من Discord Developer Portal -> General Information -> Application ID)"
+                  );
+                  if (input && input.trim()) {
+                    const cleanId = input.trim();
+                    setCustomClientId(cleanId);
+                    localStorage.setItem("custom_discord_client_id", cleanId);
+                    window.open(
+                      `https://discord.com/api/oauth2/authorize?client_id=${cleanId}&permissions=8&scope=bot%20applications.commands`,
+                      "_blank"
+                    );
+                  }
                 }
               }}
-              className="px-5 py-2.5 bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 text-white font-semibold text-xs rounded-xl transition-all shadow-lg shadow-violet-600/25 flex items-center gap-2"
+              className="px-5 py-2.5 bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 text-white font-semibold text-xs rounded-xl transition-all shadow-lg shadow-violet-600/25 flex items-center gap-2 cursor-pointer"
             >
               <span>دعوة البوت للسيرفر</span>
               <ExternalLink size={14} />

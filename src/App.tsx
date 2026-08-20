@@ -76,6 +76,8 @@ interface GuildInfo {
   moderationRoles?: Record<string, string[]>;
   moderationShortcuts?: Record<string, string>;
   logChannels?: Record<string, string>;
+  confessionChannel?: string;
+  confessionPanelChannel?: string;
 }
 
 interface DiscordRole {
@@ -124,6 +126,8 @@ export default function App() {
     moderationRoles: Record<string, string[]>;
     moderationShortcuts: Record<string, string>;
     logChannels: Record<string, string>;
+    confessionChannel?: string;
+    confessionPanelChannel?: string;
   }>({
     rolePrice: 5000,
     tokenPrice: 10,
@@ -135,9 +139,13 @@ export default function App() {
     moderationRoles: { ban: [], kick: [], timeout: [], warn: [], unban: [], untimeout: [], unwarn: [] },
     moderationShortcuts: { ban: "حظر", kick: "طرد", timeout: "تايم", warn: "تحذير", unban: "ازالة حظر", untimeout: "ازالة تايم", unwarn: "ازالة تحذير" },
     logChannels: { modLogs: "" },
+    confessionChannel: "",
+    confessionPanelChannel: "",
   });
   
   const [isSavingConfig, setIsSavingConfig] = useState<boolean>(false);
+  const [isSendingConfession, setIsSendingConfession] = useState<boolean>(false);
+  const [confessionStatusMsg, setConfessionStatusMsg] = useState<string | null>(null);
   const [isTogglingFeature, setIsTogglingFeature] = useState<string | null>(null);
   const [configStatusMsg, setConfigStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -242,6 +250,8 @@ export default function App() {
               moderationRoles: firstGuild.moderationRoles || { ban: [], kick: [], timeout: [], warn: [], unban: [], untimeout: [], unwarn: [] },
               moderationShortcuts: firstGuild.moderationShortcuts || { ban: "حظر", kick: "طرد", timeout: "تايم", warn: "تحذير", unban: "ازالة حظر", untimeout: "ازالة تايم", unwarn: "ازالة تحذير" },
               logChannels: firstGuild.logChannels || { modLogs: "" },
+              confessionChannel: firstGuild.confessionChannel || "",
+              confessionPanelChannel: firstGuild.confessionPanelChannel || "",
             });
         }
       }
@@ -301,6 +311,8 @@ export default function App() {
           moderationRoles: current.moderationRoles || { ban: [], kick: [], timeout: [], warn: [], unban: [], untimeout: [], unwarn: [] },
           moderationShortcuts: current.moderationShortcuts || { ban: "حظر", kick: "طرد", timeout: "تايم", warn: "تحذير", unban: "ازالة حظر", untimeout: "ازالة تايم", unwarn: "ازالة تحذير" },
           logChannels: current.logChannels || { modLogs: "" },
+          confessionChannel: current.confessionChannel || "",
+          confessionPanelChannel: current.confessionPanelChannel || "",
         });
       }
       fetchGuildRoles(selectedGuildId);
@@ -1533,6 +1545,72 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+
+                
+                  <div className="bg-slate-950/80 border border-pink-500/30 rounded-2xl p-5 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-2 text-white font-bold text-sm">
+                        <span className="text-pink-400 text-lg">💌</span>
+                        <span>نظام الاعترافات السرية</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          setIsSendingConfession(true);
+                          setConfessionStatusMsg(null);
+                          try {
+                            const res = await fetch("/api/guilds/" + selectedGuildId + "/send-confession-panel", { method: "POST" });
+                            const data = await res.json();
+                            setConfessionStatusMsg(data.message || (data.error ? "❌ خطأ: " + data.error : "تم الإرسال!"));
+                          } catch (err) {
+                            setConfessionStatusMsg("❌ حدث خطأ في الاتصال.");
+                          } finally {
+                            setIsSendingConfession(false);
+                            setTimeout(() => setConfessionStatusMsg(null), 5000);
+                          }
+                        }}
+                        disabled={isSendingConfession || !configForm.confessionPanelChannel}
+                        className="px-4 py-2 bg-pink-600 hover:bg-pink-500 text-white font-bold text-[11px] rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-md shadow-pink-600/20 disabled:opacity-50"
+                      >
+                        {isSendingConfession ? <RefreshCw size={14} className="animate-spin" /> : <span>إرسال لوحة الاعترافات للسيرفر</span>}
+                      </button>
+                    </div>
+                    {confessionStatusMsg && (
+                      <div className="p-2 bg-pink-500/20 border border-pink-500/30 text-pink-300 text-[11px] font-medium rounded-xl text-center">
+                        {confessionStatusMsg}
+                      </div>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">روم لوحة الاعتراف (البانل)</label>
+                        <select
+                          value={configForm.confessionPanelChannel || ""}
+                          onChange={(e) => setConfigForm({...configForm, confessionPanelChannel: e.target.value})}
+                          className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-4 py-2 text-xs focus:outline-none focus:border-pink-500 cursor-pointer font-medium"
+                        >
+                          <option value="">-- اختر روم اللوحة --</option>
+                          {channels.filter(c => c.guildId === selectedGuildId).map(c => (
+                            <option key={c.id} value={c.id}># {c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">روم نشر الاعترافات (سري)</label>
+                        <select
+                          value={configForm.confessionChannel || ""}
+                          onChange={(e) => setConfigForm({...configForm, confessionChannel: e.target.value})}
+                          className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-4 py-2 text-xs focus:outline-none focus:border-pink-500 cursor-pointer font-medium"
+                        >
+                          <option value="">-- اختر روم نشر الاعترافات --</option>
+                          {channels.filter(c => c.guildId === selectedGuildId).map(c => (
+                            <option key={c.id} value={c.id}># {c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
 
                 <div className="flex justify-end pt-4 border-t border-slate-800">
                   <button

@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { Client, GatewayIntentBits, PermissionFlagsBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, Role, Events, ChannelType, ActionRowBuilder, StringSelectMenuBuilder, GuildMember, ButtonBuilder, ButtonStyle, ComponentType } from "discord.js";
+import { Client, GatewayIntentBits, PermissionFlagsBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, Role, Events, ChannelType, ActionRowBuilder, StringSelectMenuBuilder, GuildMember, ButtonBuilder, ButtonStyle, ComponentType, ModalBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 import cors from "cors";
 import { initializeApp } from "firebase/app";
 import { getFirestore, initializeFirestore, doc, getDoc, setDoc, updateDoc, getDocFromServer, collection, query, where, getDocs, deleteDoc, addDoc, limit, increment } from "firebase/firestore";
@@ -1050,6 +1050,165 @@ async function isGamesDisabledForGuild(guildId?: string | null): Promise<boolean
 }
 
 client.on(Events.InteractionCreate, async interaction => {
+  // 1. Confession Button Handler
+  if (interaction.isButton()) {
+    if (interaction.customId === "send_confession") {
+      try {
+        const modal = new ModalBuilder()
+          .setCustomId("submit_confession_modal")
+          .setTitle("اكتب اعترافك السري 🤫");
+
+        const confessionInput = new TextInputBuilder()
+          .setCustomId("confession_text")
+          .setLabel("الاعتراف (سري ومجهول تماماً)")
+          .setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder("اكتب سرك أو اعترافك هنا... لن تظهر هويتك لأي شخص.")
+          .setRequired(true)
+          .setMaxLength(1000);
+
+        const actionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(confessionInput);
+        modal.addComponents(actionRow);
+
+        await interaction.showModal(modal);
+      } catch (err: any) {
+        console.error("Error showing confession modal:", err);
+      }
+      return;
+    }
+
+    if (interaction.customId === "reply_confession_btn") {
+      try {
+        const modal = new ModalBuilder()
+          .setCustomId("submit_confession_reply_modal")
+          .setTitle("إضافة رد مجهول 💬");
+
+        const replyInput = new TextInputBuilder()
+          .setCustomId("confession_reply_text")
+          .setLabel("ردك (سيظهر بشكل مجهول داخل الاعتراف)")
+          .setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder("اكتب ردك هنا...")
+          .setRequired(true)
+          .setMaxLength(500);
+
+        const actionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(replyInput);
+        modal.addComponents(actionRow);
+
+        await interaction.showModal(modal);
+      } catch (err: any) {
+        console.error("Error showing reply confession modal:", err);
+      }
+      return;
+    }
+  }
+
+  // 2. Confession Modal Submit Handler
+  if (interaction.isModalSubmit()) {
+    if (interaction.customId === "submit_confession_modal") {
+      try {
+        await interaction.deferReply({ ephemeral: true });
+
+        const text = interaction.fields.getTextInputValue("confession_text");
+
+        if (!db || !interaction.guildId || !interaction.guild) {
+          await interaction.editReply({ content: "❌ حدث خطأ في الاتصال بقاعدة البيانات أو السيرفر." });
+          return;
+        }
+
+        const guildDoc = await getDoc(doc(db, "guilds", interaction.guildId)).catch(() => null);
+        const confChannelId = guildDoc?.data()?.confessionChannel;
+
+        if (!confChannelId) {
+          await interaction.editReply({ content: "❌ لم تقم إدارة السيرفر بضبط روم نشر الاعترافات بعد في لوحة التحكم." });
+          return;
+        }
+
+        const targetChannel = interaction.guild.channels.cache.get(confChannelId) || await interaction.guild.channels.fetch(confChannelId).catch(() => null);
+
+        if (!targetChannel || !targetChannel.isTextBased()) {
+          await interaction.editReply({ content: "❌ تعذر العثور على روم نشر الاعترافات أو أن الروم ليس قناة نصية صالحة." });
+          return;
+        }
+
+        const embed = new EmbedBuilder()
+          .setTitle("💌 اعتراف سري جديد")
+          .setDescription(`**"${text}"**`)
+          .setColor("#EC4899")
+          .setFooter({ text: "🤫 هوية المرسل مجهولة تماماً • اضغط بالأسفل لإضافة رد مجهول" })
+          .setTimestamp();
+
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId("reply_confession_btn")
+            .setLabel("إضافة رد مجهول")
+            .setStyle(ButtonStyle.Secondary)
+            .setEmoji("💬")
+        );
+
+        const confessionMsg = await (targetChannel as any).send({ embeds: [embed], components: [row] });
+        
+        // Add default reaction emojis for confession
+        confessionMsg.react("❤️").catch(() => {});
+        confessionMsg.react("😂").catch(() => {});
+        confessionMsg.react("😮").catch(() => {});
+        confessionMsg.react("😢").catch(() => {});
+
+        await interaction.editReply({ content: "✅ تم إرسال اعترافك بسرية تامة إلى روم الاعترافات! 🤫" });
+      } catch (err: any) {
+        console.error("❌ Error handling confession submit:", err);
+        if (interaction.deferred || interaction.replied) {
+          await interaction.editReply({ content: `❌ حدث خطأ أثناء إرسال الاعتراف: ${err.message}` });
+        } else {
+          await interaction.reply({ content: `❌ حدث خطأ: ${err.message}`, ephemeral: true });
+        }
+      }
+      return;
+    }
+
+    if (interaction.customId === "submit_confession_reply_modal") {
+      try {
+        await interaction.deferReply({ ephemeral: true });
+
+        const replyText = interaction.fields.getTextInputValue("confession_reply_text");
+        const originalMessage = interaction.message;
+
+        if (!originalMessage) {
+          await interaction.editReply({ content: "❌ تعذر العثور على رسالة الاعتراف الأصلية." });
+          return;
+        }
+
+        const currentEmbed = originalMessage.embeds[0];
+        if (!currentEmbed) {
+          await interaction.editReply({ content: "❌ تعذر قراءة بيانات بطاقة الاعتراف." });
+          return;
+        }
+
+        const newEmbed = EmbedBuilder.from(currentEmbed);
+        const existingFields = newEmbed.data.fields || [];
+
+        if (existingFields.length >= 24) {
+          await interaction.editReply({ content: "❌ وصل هذا الاعتراف للحد الأقصى المسموح به من الردود (24 رد)." });
+          return;
+        }
+
+        newEmbed.addFields({
+          name: `💬 رد مجهول #${existingFields.length + 1}:`,
+          value: replyText
+        });
+
+        await originalMessage.edit({ embeds: [newEmbed] });
+        await interaction.editReply({ content: "✅ تم إضافة ردك المجهول على الاعتراف بنجاح! 💬" });
+      } catch (err: any) {
+        console.error("❌ Error handling confession reply:", err);
+        if (interaction.deferred || interaction.replied) {
+          await interaction.editReply({ content: `❌ حدث خطأ أثناء إضافة الرد: ${err.message}` });
+        } else {
+          await interaction.reply({ content: `❌ حدث خطأ: ${err.message}`, ephemeral: true });
+        }
+      }
+      return;
+    }
+  }
+
   if (interaction.isStringSelectMenu() && (interaction.customId === "select-roles-menu" || interaction.customId === "select-roles-menu-help")) {
     if (interaction.customId === "select-roles-menu-help") {
       const action = interaction.values[0];
@@ -2649,6 +2808,8 @@ async function startServer() {
               moderationRoles: configData.moderationRoles || { ban: [], kick: [], timeout: [], warn: [], unban: [], untimeout: [], unwarn: [] },
               moderationShortcuts: configData.moderationShortcuts || { ban: "حظر", kick: "طرد", timeout: "تايم", warn: "تحذير", unban: "ازالة حظر", untimeout: "ازالة تايم", unwarn: "ازالة تحذير" },
               logChannels: configData.logChannels || { modLogs: "" },
+              confessionChannel: configData.confessionChannel || "",
+              confessionPanelChannel: configData.confessionPanelChannel || "",
             };
           })
         );
@@ -2721,7 +2882,7 @@ async function startServer() {
 
     apiRouter.post("/guilds/config", async (req, res) => {
       try {
-        const { guildId, rolePrice, tokenPrice, paymentAccount, paymentChannelId, allowedRoles, freeRoleEnabled, gamesEnabled, moderationRoles, moderationShortcuts, logChannels } = req.body;
+        const { guildId, rolePrice, tokenPrice, paymentAccount, paymentChannelId, allowedRoles, freeRoleEnabled, gamesEnabled, moderationRoles, moderationShortcuts, logChannels, confessionChannel, confessionPanelChannel } = req.body;
         if (!guildId) {
           return res.status(400).json({ error: "يرجى تحديد المعرف الفريد للسيرفر (guildId)." });
         }
@@ -2739,6 +2900,8 @@ async function startServer() {
         if (moderationRoles !== undefined) updatePayload.moderationRoles = moderationRoles;
         if (moderationShortcuts !== undefined) updatePayload.moderationShortcuts = moderationShortcuts;
         if (logChannels !== undefined) updatePayload.logChannels = logChannels;
+        if (confessionChannel !== undefined) updatePayload.confessionChannel = confessionChannel;
+        if (confessionPanelChannel !== undefined) updatePayload.confessionPanelChannel = confessionPanelChannel;
         if (gamesEnabled !== undefined) {
           updatePayload.gamesEnabled = Boolean(gamesEnabled);
           if (!gamesEnabled && client) {
@@ -2804,6 +2967,50 @@ async function startServer() {
         });
       } catch (err: any) {
         console.error("❌ Error in /api/guilds/toggle-feature:", err);
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    
+    apiRouter.post("/guilds/:guildId/send-confession-panel", async (req, res) => {
+      try {
+        const { guildId } = req.params;
+        if (!client || !client.user) {
+          return res.status(503).json({ error: "البوت غير متصل حالياً بـ Discord." });
+        }
+        
+        if (!db) {
+          return res.status(503).json({ error: "قاعدة بيانات Firestore غير متصلة." });
+        }
+        
+        const guildDoc = await getDoc(doc(db, "guilds", guildId)).catch(() => null);
+        const confessionPanelChannelId = guildDoc?.data()?.confessionPanelChannel;
+        
+        if (!confessionPanelChannelId) {
+          return res.status(400).json({ error: "لم يتم تحديد روم إرسال لوحة الاعترافات في الإعدادات." });
+        }
+        
+        const channel = await client.channels.fetch(confessionPanelChannelId).catch(() => null);
+        if (!channel || channel.type !== ChannelType.GuildText) {
+          return res.status(404).json({ error: "روم لوحة الاعترافات غير موجود أو ليس قناة كتابية." });
+        }
+        
+        const embed = new EmbedBuilder()
+          .setTitle("💌 صندوق الاعترافات السرية")
+          .setDescription("هل لديك سر تود مشاركته؟ أو رسالة مجهولة لشخص في السيرفر؟\n\nاضغط على الزر بالأسفل واكتب اعترافك بسرية تامة. لن يعرف أحد هويتك أبداً! 🤫")
+          .setColor("#E91E63");
+          
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId("send_confession")
+            .setLabel("اكتب اعترافك ✍️")
+            .setStyle(ButtonStyle.Primary)
+        );
+        
+        await (channel as any).send({ embeds: [embed], components: [row] });
+        res.json({ success: true, message: "تم إرسال لوحة الاعترافات بنجاح!" });
+      } catch (err: any) {
+        console.error("❌ Error in send-confession-panel:", err);
         res.status(500).json({ error: err.message });
       }
     });

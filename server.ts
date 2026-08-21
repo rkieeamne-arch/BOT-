@@ -238,13 +238,13 @@ if (DISCORD_TOKEN) {
   if (DISCORD_TOKEN.startsWith("Token ")) DISCORD_TOKEN = DISCORD_TOKEN.substring(6).trim();
 }
 
-const CLIENT_ID = (process.env.VITE_DISCORD_CLIENT_ID || process.env.DISCORD_CLIENT_ID || process.env.CLIENT_ID || process.env.APP_ID)?.trim();
+const CLIENT_ID = (process.env.VITE_DISCORD_CLIENT_ID || process.env.DISCORD_CLIENT_ID || process.env.CLIENT_ID || process.env.APP_ID || "1505307819648221194")?.trim();
 
 // Global Status Store
 let botStatus = {
   loggedIn: false,
   tag: "Not logged in",
-  clientId: CLIENT_ID || "",
+  clientId: CLIENT_ID || "1505307819648221194",
   guilds: 0,
   lastError: null as string | null,
   intentsRequested: ["Guilds", "GuildMessages", "MessageContent", "GuildMembers", "GuildPresences"],
@@ -1005,8 +1005,13 @@ async function createArabCountryRoles(guild: any, options: { style?: string; aut
 }
 
 // Bot Event Handlers
-client.on("guildCreate", guild => {
+client.on(Events.GuildCreate, guild => {
+  botStatus.guilds = client.guilds.cache.size;
   registerCommands(guild.id);
+});
+
+client.on(Events.GuildDelete, guild => {
+  botStatus.guilds = client.guilds.cache.size;
 });
 
 client.on(Events.ClientReady, () => {
@@ -2717,7 +2722,16 @@ async function startServer() {
 
     apiRouter.get("/bot-status", (req, res) => {
       try {
-        res.json(botStatus);
+        const isClientReady = !!(client && client.isReady());
+        const liveStatus = {
+          loggedIn: isClientReady || botStatus.loggedIn,
+          tag: client?.user?.tag || botStatus.tag,
+          clientId: client?.user?.id || botStatus.clientId || "1505307819648221194",
+          guilds: client?.guilds?.cache?.size ?? botStatus.guilds,
+          lastError: botStatus.lastError,
+          intentsRequested: botStatus.intentsRequested,
+        };
+        res.json(liveStatus);
       } catch (err: any) {
         console.error("❌ Error in /api/bot-status:", err);
         res.status(500).json({ error: err.message });

@@ -177,11 +177,9 @@ export default function App() {
   const envClientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
   const activeClientId = (envClientId && envClientId.trim() !== "" && envClientId !== "PLACEHOLDER") 
     ? envClientId.trim() 
-    : (status?.clientId || customClientId || "");
+    : (status?.clientId || customClientId || "1505307819648221194");
   const isIdMissing = !activeClientId || activeClientId.trim() === "";
-  const inviteUrl = isIdMissing 
-    ? "#" 
-    : `https://discord.com/api/oauth2/authorize?client_id=${activeClientId.trim()}&permissions=8&scope=bot%20applications.commands`;
+  const inviteUrl = `https://discord.com/api/oauth2/authorize?client_id=${activeClientId.trim()}&permissions=8&scope=bot%20applications.commands`;
 
   // Fetch Bot Connection Status
   const fetchStatus = async () => {
@@ -607,25 +605,8 @@ export default function App() {
 
             <a
               href={inviteUrl}
-              target={isIdMissing ? "_self" : "_blank"}
+              target="_blank"
               rel="noreferrer"
-              onClick={(e) => {
-                if (isIdMissing) {
-                  e.preventDefault();
-                  const input = prompt(
-                    "🔑 أدخل (Client ID / Application ID) الخاص بالبوت لدعوته للسيرفر مباشرة:\n\n(يمكنك الحصول عليه من Discord Developer Portal -> General Information -> Application ID)"
-                  );
-                  if (input && input.trim()) {
-                    const cleanId = input.trim();
-                    setCustomClientId(cleanId);
-                    localStorage.setItem("custom_discord_client_id", cleanId);
-                    window.open(
-                      `https://discord.com/api/oauth2/authorize?client_id=${cleanId}&permissions=8&scope=bot%20applications.commands`,
-                      "_blank"
-                    );
-                  }
-                }
-              }}
               className="px-5 py-2.5 bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 text-white font-semibold text-xs rounded-xl transition-all shadow-lg shadow-violet-600/25 flex items-center gap-2 cursor-pointer"
             >
               <span>دعوة البوت للسيرفر</span>
@@ -669,10 +650,14 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-4 md:px-8 py-7 space-y-7">
 
         {/* Global Connection Error Notice if present */}
-        {statusError && (
+        {(statusError || (status && !status.loggedIn && status.lastError)) && (
           <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-center gap-3 text-rose-400 text-xs shadow-lg">
             <AlertTriangle size={18} className="shrink-0" />
-            <span>تنبه: تعذر استرداد حالة البوت المباشرة. تأكد من أن سيرفر ديسكورد متصل وقيد التشغيل. ({statusError})</span>
+            <span>
+              {status?.lastError 
+                ? `خطأ اتصال البوت بـ Discord: ${status.lastError}. تأكد من تفعيل الـ Privileged Gateway Intents (Server Members & Message Content) وتحديث التوكن.`
+                : `تنبيه: تعذر استرداد حالة البوت المباشرة. تأكد من أن سيرفر ديسكورد متصل وقيد التشغيل. (${statusError})`}
+            </span>
           </div>
         )}
 
